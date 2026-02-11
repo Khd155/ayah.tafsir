@@ -45,11 +45,24 @@ const Storage = {
 
 // ============ Script URL Management ============
 function getScriptURL() {
-  return Storage.get('scriptURL', '');
+  // Try multiple keys for compatibility
+  let url = Storage.get('scriptURL', '');
+  if (!url) {
+    // Fallback: try raw localStorage with 'scriptUrl' key
+    try {
+      url = localStorage.getItem('scriptUrl') || '';
+    } catch(e) { url = ''; }
+  }
+  return url;
 }
 
 function setScriptURL(url) {
+  // Save with both keys to ensure persistence
   Storage.set('scriptURL', url);
+  // Also save raw (without JSON.stringify) for maximum compatibility
+  try {
+    localStorage.setItem('scriptUrl', url);
+  } catch(e) { console.error('Storage error:', e); }
 }
 
 // ============ User Management ============
@@ -766,10 +779,14 @@ function stopAutoRefresh() {
 // ============ Settings ============
 function loadSettings() {
   const urlInput = document.getElementById('scriptURLInput');
+  const savedURL = getScriptURL();
   if (urlInput) {
-    urlInput.value = getScriptURL();
+    urlInput.value = savedURL;
   }
+  // Update status indicator
   checkScriptURLStatus();
+  // Log for debugging
+  console.log('Settings loaded. Script URL:', savedURL ? 'Found (' + savedURL.substring(0, 40) + '...)' : 'Not set');
 }
 
 function saveSettings() {
@@ -787,7 +804,16 @@ function saveSettings() {
   }
   
   setScriptURL(url);
-  showToast('تم حفظ الإعدادات بنجاح', 'success');
+  
+  // Verify the save was successful
+  const verified = getScriptURL();
+  if (verified === url) {
+    showToast('تم حفظ الرابط بنجاح — سيبقى محفوظاً حتى بعد إغلاق المتصفح', 'success');
+    console.log('Script URL saved and verified in localStorage');
+  } else {
+    showToast('تم الحفظ ولكن يرجى التحقق من إعدادات المتصفح', 'warning');
+  }
+  
   checkScriptURLStatus();
   addActivityLog('تحديث إعدادات السكربت', true);
 }
@@ -1098,6 +1124,18 @@ document.addEventListener('DOMContentLoaded', function() {
       role: 'admin',
       createdAt: new Date().toISOString()
     }]);
+  }
+  
+  // Load Script URL from localStorage on startup
+  const savedURL = getScriptURL();
+  if (savedURL) {
+    console.log('Script URL loaded from localStorage on startup');
+  }
+  
+  // Pre-fill the settings input if it exists
+  const urlInput = document.getElementById('scriptURLInput');
+  if (urlInput && savedURL) {
+    urlInput.value = savedURL;
   }
   
   // Check for existing session
