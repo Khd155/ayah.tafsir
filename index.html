@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>لوحة تحكم المسابقة</title>
+  
+  <!-- Google Fonts - Tajawal -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Font Awesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  
+  <!-- Main CSS -->
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- ==================== Toast Container ==================== -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- ==================== Login Page ==================== -->
+  <div class="login-container" id="loginContainer">
+    <div class="login-box">
+      <span class="logo-icon">🏆</span>
+      <h1>لوحة تحكم المسابقة</h1>
+      <p>قم بتسجيل الدخول للوصول إلى لوحة التحكم</p>
+      
+      <div class="input-group">
+        <i class="fas fa-user"></i>
+        <input type="text" id="loginUsername" placeholder="اسم المستخدم" autocomplete="username">
+      </div>
+      
+      <div class="input-group">
+        <i class="fas fa-lock"></i>
+        <input type="password" id="loginPassword" placeholder="كلمة المرور" autocomplete="current-password">
+      </div>
+      
+      <button class="login-btn" onclick="login()">
+        <i class="fas fa-sign-in-alt"></i> تسجيل الدخول
+      </button>
+      
+      <p class="login-error" id="loginError"></p>
+      
+      <p style="margin-top: 20px; font-size: 0.8rem; color: var(--text-muted);">
+        الدخول الافتراضي: admin / admin123
+      </p>
+    </div>
+  </div>
+
+  <!-- ==================== Dashboard ==================== -->
+  <div class="dashboard-container" id="dashboardContainer">
+    
+    <!-- Sidebar Overlay (Mobile) -->
+    <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+    
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <span class="logo-icon">🏆</span>
+        <h2>لوحة التحكم</h2>
+        <span>إدارة المسابقة v1.0</span>
+      </div>
+      
+      <nav class="sidebar-nav">
+        <div class="nav-item active" data-page="control" onclick="navigateTo('control')">
+          <i class="fas fa-gamepad"></i>
+          <span>لوحة التحكم</span>
+        </div>
+        <div class="nav-item" data-page="stats" onclick="navigateTo('stats')">
+          <i class="fas fa-chart-bar"></i>
+          <span>الإحصائيات</span>
+        </div>
+        <div class="nav-item" data-page="users" id="navUsers" onclick="navigateTo('users')">
+          <i class="fas fa-users-cog"></i>
+          <span>إدارة المستخدمين</span>
+        </div>
+        <div class="nav-item" data-page="settings" onclick="navigateTo('settings')">
+          <i class="fas fa-cog"></i>
+          <span>الإعدادات</span>
+        </div>
+        <div class="nav-item" data-page="autocontrol" onclick="navigateTo('autocontrol')">
+          <i class="fas fa-robot"></i>
+          <span>التحكم التلقائي</span>
+        </div>
+      </nav>
+      
+      <div class="sidebar-footer">
+        <div class="nav-item" onclick="logout()">
+          <i class="fas fa-sign-out-alt"></i>
+          <span>تسجيل الخروج</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      
+      <!-- Top Bar -->
+      <div class="top-bar">
+        <div style="display: flex; align-items: center; gap: 15px;">
+          <button class="menu-toggle" onclick="toggleSidebar()">
+            <i class="fas fa-bars"></i>
+          </button>
+          <h1>مرحباً، <span id="welcomeName">المدير</span></h1>
+        </div>
+        <div class="user-info">
+          <span id="userRole">مدير</span>
+          <span id="userName">admin</span>
+          <div class="avatar" id="userAvatar">A</div>
+        </div>
+      </div>
+
+      <!-- ========== Control Panel Page ========== -->
+      <div class="page active" id="page-control">
+        <div class="section-title">
+          <i class="fas fa-sliders-h"></i>
+          لوحة التحكم الرئيسية
+        </div>
+        <p class="section-desc">تحكم كامل في النموذج والمسابقة عبر الأزرار التالية</p>
+        
+        <div class="controls-grid">
+          
+          <!-- فتح النموذج -->
+          <button class="control-btn btn-success" data-action="openForm" onclick="handleControlAction('openForm', this)">
+            <i class="fas fa-lock-open"></i>
+            <span>فتح النموذج</span>
+          </button>
+          
+          <!-- إغلاق النموذج -->
+          <button class="control-btn btn-danger" data-action="closeForm" onclick="handleControlAction('closeForm', this)">
+            <i class="fas fa-lock"></i>
+            <span>إغلاق النموذج</span>
+          </button>
+          
+          <!-- تحديث السؤال -->
+          <button class="control-btn" data-action="update" onclick="handleControlAction('update', this)">
+            <i class="fas fa-sync-alt"></i>
+            <span>تحديث السؤال</span>
+          </button>
+          
+          <!-- تحديث وفتح -->
+          <button class="control-btn btn-success" data-action="update_open" onclick="handleControlAction('update_open', this)">
+            <i class="fas fa-play-circle"></i>
+            <span>تحديث وفتح</span>
+          </button>
+          
+          <!-- حذف الردود -->
+          <button class="control-btn btn-danger" data-action="delete" onclick="handleControlAction('delete', this)">
+            <i class="fas fa-trash-alt"></i>
+            <span>حذف الردود</span>
+          </button>
+          
+          <!-- نسخ احتياطي -->
+          <button class="control-btn btn-info" data-action="backup" onclick="handleControlAction('backup', this)">
+            <i class="fas fa-cloud-download-alt"></i>
+            <span>نسخ احتياطي</span>
+          </button>
+          
+          <!-- نتائج آخر سؤال -->
+          <button class="control-btn btn-info" data-action="results1" onclick="handleControlAction('results1', this)">
+            <i class="fas fa-poll"></i>
+            <span>نتائج آخر سؤال</span>
+          </button>
+          
+          <!-- نتائج آخر 3 أسئلة -->
+          <button class="control-btn btn-info" data-action="results3" onclick="handleControlAction('results3', this)">
+            <i class="fas fa-poll-h"></i>
+            <span>نتائج آخر 3 أسئلة</span>
+          </button>
+          
+        </div>
+
+        <!-- Results Display Area -->
+        <div class="results-display" id="resultsDisplay">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <h3><i class="fas fa-clipboard-list"></i> النتائج</h3>
+            <button class="btn-sm btn-delete" onclick="hideResults()">
+              <i class="fas fa-times"></i> إغلاق
+            </button>
+          </div>
+          <pre id="resultsContent"></pre>
+        </div>
+
+        <!-- Activity Log -->
+        <div class="activity-log">
+          <h3><i class="fas fa-history"></i> سجل الأنشطة</h3>
+          <div id="activityLogList">
+            <div style="text-align: center; color: var(--text-muted); padding: 20px;">لا توجد أنشطة بعد</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========== Statistics Page ========== -->
+      <div class="page" id="page-stats">
+        <div class="section-title">
+          <i class="fas fa-chart-line"></i>
+          إحصائيات المسابقة
+        </div>
+        <p class="section-desc">عرض إحصائيات الردود والمشاركات في الوقت الفعلي — مشابه لإحصائيات Google Forms</p>
+        
+        <!-- شريط التحديث التلقائي -->
+        <div class="auto-refresh-bar">
+          <div class="refresh-status">
+            <span class="pulse-dot"></span>
+            <span>مباشر</span>
+            <span class="refresh-separator">|</span>
+            <span>تحديث تلقائي كل <strong>60</strong> ثانية</span>
+          </div>
+          <div class="refresh-actions">
+            <span class="refresh-timer" id="refreshCountdown">60</span>
+            <span class="refresh-timer-label">ثانية للتحديث</span>
+            <span class="refresh-last">آخر تحديث: <span id="lastRefreshTime">--:--</span></span>
+            <button class="refresh-btn" onclick="loadStats()" id="refreshNowBtn">
+              <i class="fas fa-sync-alt"></i> تحديث الآن
+            </button>
+          </div>
+        </div>
+        
+        <!-- بطاقات الإحصائيات الرئيسية -->
+        <div class="stats-grid">
+          
+          <!-- إجمالي الردود -->
+          <div class="stat-card-new" id="cardTotal">
+            <div class="stat-card-header">
+              <div class="stat-icon-new gold">
+                <i class="fas fa-comments"></i>
+              </div>
+              <div class="stat-badge-new">إجمالي</div>
+            </div>
+            <div class="stat-number" id="statTotal">٠</div>
+            <div class="stat-title">إجمالي الردود</div>
+            <div class="stat-subtitle">عدد كل المشاركات في النموذج</div>
+            <div class="stat-bar">
+              <div class="stat-bar-fill gold-bar" id="totalBar" style="width: 0%"></div>
+            </div>
+          </div>
+          
+          <!-- ردود اليوم -->
+          <div class="stat-card-new" id="cardToday">
+            <div class="stat-card-header">
+              <div class="stat-icon-new green">
+                <i class="fas fa-calendar-day"></i>
+              </div>
+              <div class="stat-badge-new today-badge">اليوم</div>
+            </div>
+            <div class="stat-number" id="statToday">٠</div>
+            <div class="stat-title">ردود اليوم</div>
+            <div class="stat-subtitle">عدد الردود التي وصلت اليوم فقط</div>
+            <div class="stat-bar">
+              <div class="stat-bar-fill green-bar" id="todayBar" style="width: 0%"></div>
+            </div>
+          </div>
+          
+          <!-- الإجابات الصحيحة على آخر سؤال -->
+          <div class="stat-card-new" id="cardCorrect">
+            <div class="stat-card-header">
+              <div class="stat-icon-new purple">
+                <i class="fas fa-check-double"></i>
+              </div>
+              <div class="stat-badge-new correct-badge">آخر سؤال</div>
+            </div>
+            <div class="stat-number" id="statCorrect">٠</div>
+            <div class="stat-title">أجابوا صح</div>
+            <div class="stat-subtitle" id="correctSubtitle">عدد من أجاب إجابة صحيحة على آخر سؤال</div>
+            <div class="stat-bar">
+              <div class="stat-bar-fill purple-bar" id="correctBar" style="width: 0%"></div>
+            </div>
+          </div>
+          
+          <!-- آخر نشاط -->
+          <div class="stat-card-new" id="cardLast">
+            <div class="stat-card-header">
+              <div class="stat-icon-new blue">
+                <i class="fas fa-clock"></i>
+              </div>
+              <div class="stat-badge-new last-badge">آخر نشاط</div>
+            </div>
+            <div class="stat-number stat-time" id="statLast">لا يوجد</div>
+            <div class="stat-title">وقت آخر رد</div>
+            <div class="stat-subtitle">آخر رد تم تسجيله بالتوقيت المحلي</div>
+            <div class="stat-bar">
+              <div class="stat-bar-fill blue-bar" style="width: 100%"></div>
+            </div>
+          </div>
+          
+        </div>
+
+        <!-- ملخص سريع -->
+        <div class="stats-summary">
+          <div class="summary-item">
+            <i class="fas fa-percentage"></i>
+            <span>نسبة الإجابات الصحيحة:</span>
+            <strong id="correctPercentage">٠٪</strong>
+          </div>
+          <div class="summary-item">
+            <i class="fas fa-chart-pie"></i>
+            <span>نسبة ردود اليوم من الإجمالي:</span>
+            <strong id="todayPercentage">٠٪</strong>
+          </div>
+          <div class="summary-item">
+            <i class="fas fa-trophy"></i>
+            <span>حالة النموذج:</span>
+            <strong id="formStatusText">غير معروف</strong>
+          </div>
+        </div>
+        
+        <!-- الرسم البياني -->
+        <div class="chart-container">
+          <div class="chart-header">
+            <h3><i class="fas fa-chart-bar"></i> الردود خلال الأسبوع</h3>
+            <div class="chart-legend">
+              <span class="legend-item"><span class="legend-color gold-legend"></span> عدد الردود</span>
+            </div>
+          </div>
+          <div class="chart-wrapper">
+            <canvas id="statsChart"></canvas>
+          </div>
+        </div>
+
+        <!-- تفاصيل آخر سؤال -->
+        <div class="last-question-card" id="lastQuestionCard" style="display: none;">
+          <div class="lq-header">
+            <i class="fas fa-question-circle"></i>
+            <h3>تفاصيل آخر سؤال</h3>
+          </div>
+          <div class="lq-body">
+            <div class="lq-question" id="lastQuestionText">—</div>
+            <div class="lq-stats-row">
+              <div class="lq-stat">
+                <span class="lq-stat-value" id="lqTotalAnswers">٠</span>
+                <span class="lq-stat-label">إجمالي الإجابات</span>
+              </div>
+              <div class="lq-stat correct">
+                <span class="lq-stat-value" id="lqCorrectAnswers">٠</span>
+                <span class="lq-stat-label">إجابة صحيحة</span>
+              </div>
+              <div class="lq-stat wrong">
+                <span class="lq-stat-value" id="lqWrongAnswers">٠</span>
+                <span class="lq-stat-label">إجابة خاطئة</span>
+              </div>
+              <div class="lq-stat percentage">
+                <span class="lq-stat-value" id="lqPercentage">٠٪</span>
+                <span class="lq-stat-label">نسبة النجاح</span>
+              </div>
+            </div>
+            <!-- شريط نسبة الصح والخطأ -->
+            <div class="lq-progress">
+              <div class="lq-progress-correct" id="lqProgressCorrect" style="width: 0%"></div>
+              <div class="lq-progress-wrong" id="lqProgressWrong" style="width: 0%"></div>
+            </div>
+            <div class="lq-progress-labels">
+              <span class="lq-correct-label"><i class="fas fa-check"></i> صحيحة <span id="lqCorrectPct">٠٪</span></span>
+              <span class="lq-wrong-label"><i class="fas fa-times"></i> خاطئة <span id="lqWrongPct">٠٪</span></span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ========== Users Management Page ========== -->
+      <div class="page" id="page-users">
+        <div class="section-title">
+          <i class="fas fa-users-cog"></i>
+          إدارة المستخدمين
+        </div>
+        <p class="section-desc">إضافة وحذف المستخدمين وتحديد صلاحياتهم</p>
+        
+        <div class="users-header">
+          <div>
+            <span style="color: var(--text-muted); font-size: 0.9rem;">
+              <i class="fas fa-info-circle"></i>
+              يتم تخزين المستخدمين محلياً في المتصفح
+            </span>
+          </div>
+          <button class="add-user-btn" onclick="openAddUserModal()">
+            <i class="fas fa-user-plus"></i>
+            إضافة مستخدم جديد
+          </button>
+        </div>
+        
+        <div class="users-table-wrapper">
+          <table class="users-table">
+            <thead>
+              <tr>
+                <th>المستخدم</th>
+                <th>الصلاحية</th>
+                <th>تاريخ الإنشاء</th>
+                <th>الإجراءات</th>
+              </tr>
+            </thead>
+            <tbody id="usersTableBody">
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ========== Settings Page ========== -->
+      <div class="page" id="page-settings">
+        <div class="section-title">
+          <i class="fas fa-cog"></i>
+          الإعدادات
+        </div>
+        <p class="section-desc">إعداد رابط Google Apps Script وإعدادات الحساب</p>
+        
+        <!-- Script URL Settings -->
+        <div class="settings-card">
+          <h3><i class="fas fa-link"></i> رابط Google Apps Script</h3>
+          <p>أدخل رابط Web App الخاص بـ Google Apps Script لربط لوحة التحكم بالنموذج</p>
+          
+          <label for="scriptURLInput">رابط السكربت (Web App URL)</label>
+          <input type="url" id="scriptURLInput" placeholder="https://script.google.com/macros/s/XXXX/exec" dir="ltr">
+          
+          <div id="urlStatus" class="url-status disconnected">
+            <i class="fas fa-exclamation-circle"></i> لم يتم إعداد الرابط بعد
+          </div>
+          
+          <div style="display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap;">
+            <button class="save-btn" onclick="saveSettings()">
+              <i class="fas fa-save"></i> حفظ الرابط
+            </button>
+            <button class="save-btn" onclick="testConnection()" style="background: rgba(23, 162, 184, 0.2); color: var(--info); border: 1px solid rgba(23, 162, 184, 0.3);">
+              <i class="fas fa-plug"></i> اختبار الاتصال
+            </button>
+          </div>
+        </div>
+        
+        <!-- Password Change -->
+        <div class="settings-card password-section">
+          <h3><i class="fas fa-key"></i> تغيير كلمة المرور</h3>
+          <p>قم بتغيير كلمة المرور الخاصة بحسابك لتعزيز الأمان</p>
+          
+          <label for="currentPassword">كلمة المرور الحالية</label>
+          <input type="password" id="currentPassword" placeholder="أدخل كلمة المرور الحالية" dir="rtl" style="text-align: right;">
+          
+          <label for="newPassword">كلمة المرور الجديدة</label>
+          <input type="password" id="newPassword" placeholder="أدخل كلمة المرور الجديدة" dir="rtl" style="text-align: right;">
+          
+          <label for="confirmPassword">تأكيد كلمة المرور الجديدة</label>
+          <input type="password" id="confirmPassword" placeholder="أعد إدخال كلمة المرور الجديدة" dir="rtl" style="text-align: right;">
+          
+          <button class="save-btn" onclick="changePassword()" style="margin-top: 10px;">
+            <i class="fas fa-key"></i> تغيير كلمة المرور
+          </button>
+        </div>
+        
+        <!-- App Info -->
+        <div class="settings-card">
+          <h3><i class="fas fa-info-circle"></i> معلومات التطبيق</h3>
+          <p>معلومات حول لوحة التحكم والإصدار الحالي</p>
+          
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 15px;">
+            <div>
+              <label style="margin-bottom: 4px;">الإصدار</label>
+              <div style="color: var(--text-primary); font-size: 0.95rem;">v1.0.0</div>
+            </div>
+            <div>
+              <label style="margin-bottom: 4px;">المطور</label>
+              <div style="color: var(--text-primary); font-size: 0.95rem;">Competition Dashboard</div>
+            </div>
+            <div>
+              <label style="margin-bottom: 4px;">التقنيات</label>
+              <div style="color: var(--text-primary); font-size: 0.95rem;">HTML + CSS + JS + Chart.js</div>
+            </div>
+            <div>
+              <label style="margin-bottom: 4px;">التخزين</label>
+              <div style="color: var(--text-primary); font-size: 0.95rem;">localStorage</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========== Auto Control Page ========== -->
+      <div class="page" id="page-autocontrol">
+        <div class="section-title">
+          <i class="fas fa-robot"></i>
+          التحكم التلقائي
+        </div>
+        <p class="section-desc">جدولة المهام وتنفيذها تلقائياً حسب التوقيت المحدد</p>
+
+        <!-- إضافة مهمة جديدة -->
+        <div class="ac-add-card">
+          <div class="ac-add-header">
+            <h3><i class="fas fa-plus-circle"></i> إضافة مهمة مجدولة جديدة</h3>
+          </div>
+          <div class="ac-add-body">
+            
+            <!-- اختيار الدالة -->
+            <div class="ac-field">
+              <label><i class="fas fa-bolt"></i> الإجراء / الدالة</label>
+              <select id="acAction">
+                <option value="">— اختر الإجراء —</option>
+                <option value="openForm">فتح النموذج</option>
+                <option value="closeForm">إغلاق النموذج</option>
+                <option value="update">تحديث السؤال</option>
+                <option value="update_open">تحديث وفتح</option>
+                <option value="delete">حذف الردود</option>
+                <option value="backup">نسخ احتياطي</option>
+                <option value="results1">نتائج آخر سؤال</option>
+                <option value="results3">نتائج آخر 3 أسئلة</option>
+                <option value="stats">تحديث الإحصائيات</option>
+              </select>
+            </div>
+
+            <!-- نوع الجدولة -->
+            <div class="ac-field">
+              <label><i class="fas fa-calendar-alt"></i> نوع الجدولة</label>
+              <select id="acScheduleType" onchange="onScheduleTypeChange()">
+                <option value="once">مرة واحدة في وقت محدد</option>
+                <option value="daily">يومياً</option>
+                <option value="weekly">أسبوعياً</option>
+                <option value="monthly">شهرياً</option>
+              </select>
+            </div>
+
+            <!-- تحديد الوقت -->
+            <div class="ac-time-section">
+              
+              <!-- وقت التنفيذ -->
+              <div class="ac-field ac-field-inline">
+                <label><i class="fas fa-clock"></i> وقت التنفيذ</label>
+                <div class="ac-time-picker">
+                  <div class="ac-time-group">
+                    <label class="ac-time-label">الساعة</label>
+                    <select id="acHour">
+                      <option value="0">12 AM</option>
+                      <option value="1">1 AM</option>
+                      <option value="2">2 AM</option>
+                      <option value="3">3 AM</option>
+                      <option value="4">4 AM</option>
+                      <option value="5">5 AM</option>
+                      <option value="6">6 AM</option>
+                      <option value="7">7 AM</option>
+                      <option value="8">8 AM</option>
+                      <option value="9">9 AM</option>
+                      <option value="10">10 AM</option>
+                      <option value="11">11 AM</option>
+                      <option value="12">12 PM</option>
+                      <option value="13">1 PM</option>
+                      <option value="14">2 PM</option>
+                      <option value="15">3 PM</option>
+                      <option value="16">4 PM</option>
+                      <option value="17">5 PM</option>
+                      <option value="18">6 PM</option>
+                      <option value="19">7 PM</option>
+                      <option value="20">8 PM</option>
+                      <option value="21">9 PM</option>
+                      <option value="22">10 PM</option>
+                      <option value="23">11 PM</option>
+                    </select>
+                  </div>
+                  <span class="ac-time-sep">:</span>
+                  <div class="ac-time-group">
+                    <label class="ac-time-label">الدقيقة</label>
+                    <select id="acMinute">
+                      <option value="0">00</option>
+                      <option value="5">05</option>
+                      <option value="10">10</option>
+                      <option value="15">15</option>
+                      <option value="20">20</option>
+                      <option value="25">25</option>
+                      <option value="30">30</option>
+                      <option value="35">35</option>
+                      <option value="40">40</option>
+                      <option value="45">45</option>
+                      <option value="50">50</option>
+                      <option value="55">55</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <!-- تاريخ التنفيذ (لمرة واحدة) -->
+              <div class="ac-field" id="acDateField">
+                <label><i class="fas fa-calendar-day"></i> تاريخ التنفيذ</label>
+                <input type="date" id="acDate" dir="ltr">
+              </div>
+
+              <!-- أيام الأسبوع (للأسبوعي) -->
+              <div class="ac-field" id="acWeekDaysField" style="display:none;">
+                <label><i class="fas fa-calendar-week"></i> أيام التنفيذ</label>
+                <div class="ac-weekdays">
+                  <label class="ac-day-check"><input type="checkbox" value="0"> <span>الأحد</span></label>
+                  <label class="ac-day-check"><input type="checkbox" value="1"> <span>الاثنين</span></label>
+                  <label class="ac-day-check"><input type="checkbox" value="2"> <span>الثلاثاء</span></label>
+                  <label class="ac-day-check"><input type="checkbox" value="3"> <span>الأربعاء</span></label>
+                  <label class="ac-day-check"><input type="checkbox" value="4"> <span>الخميس</span></label>
+                  <label class="ac-day-check"><input type="checkbox" value="5"> <span>الجمعة</span></label>
+                  <label class="ac-day-check"><input type="checkbox" value="6"> <span>السبت</span></label>
+                </div>
+              </div>
+
+              <!-- يوم من الشهر (للشهري) -->
+              <div class="ac-field" id="acMonthDayField" style="display:none;">
+                <label><i class="fas fa-calendar"></i> اليوم من الشهر</label>
+                <select id="acMonthDay">
+                </select>
+              </div>
+
+            </div>
+
+            <!-- اسم المهمة (اختياري) -->
+            <div class="ac-field">
+              <label><i class="fas fa-tag"></i> اسم المهمة (اختياري)</label>
+              <input type="text" id="acTaskName" placeholder="مثال: فتح النموذج الصباحي" dir="rtl" style="text-align:right;">
+            </div>
+
+            <!-- زر الحفظ -->
+            <div class="ac-actions">
+              <button class="save-btn ac-save-btn" onclick="saveScheduledTask()">
+                <i class="fas fa-save"></i> حفظ المهمة
+              </button>
+              <button class="save-btn ac-reset-btn" onclick="resetScheduleForm()">
+                <i class="fas fa-undo"></i> إعادة تعيين
+              </button>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- المهام المجدولة الحالية -->
+        <div class="ac-tasks-card">
+          <div class="ac-tasks-header">
+            <h3><i class="fas fa-list-alt"></i> المهام المجدولة</h3>
+            <span class="ac-tasks-count" id="acTasksCount">٠ مهام</span>
+          </div>
+          <div class="ac-tasks-body" id="acTasksList">
+            <div class="ac-empty">
+              <i class="fas fa-calendar-times"></i>
+              <p>لا توجد مهام مجدولة حالياً</p>
+              <span>أضف مهمة جديدة من النموذج أعلاه</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- سجل التنفيذات -->
+        <div class="ac-log-card">
+          <div class="ac-log-header">
+            <h3><i class="fas fa-history"></i> سجل التنفيذات</h3>
+            <button class="ac-clear-log-btn" onclick="clearAutoLog()">
+              <i class="fas fa-trash-alt"></i> مسح السجل
+            </button>
+          </div>
+          <div class="ac-log-body" id="acLogList">
+            <div class="ac-empty">
+              <i class="fas fa-clipboard-list"></i>
+              <p>لا توجد تنفيذات سابقة</p>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </main>
+  </div>
+
+  <!-- ==================== Add User Modal ==================== -->
+  <div class="modal-overlay" id="addUserModal">
+    <div class="modal">
+      <h3><i class="fas fa-user-plus"></i> إضافة مستخدم جديد</h3>
+      
+      <label for="newUsername">اسم المستخدم</label>
+      <input type="text" id="newUsername" placeholder="أدخل اسم المستخدم" dir="rtl" style="text-align: right;">
+      
+      <label for="newUserPassword">كلمة المرور</label>
+      <input type="password" id="newUserPassword" placeholder="أدخل كلمة المرور" dir="rtl" style="text-align: right;">
+      
+      <label for="newUserRole">الصلاحية</label>
+      <select id="newUserRole">
+        <option value="viewer">مشاهد - مشاهدة فقط</option>
+        <option value="admin">مدير - تحكم كامل</option>
+      </select>
+      
+      <div class="modal-actions">
+        <button class="save-btn" onclick="saveNewUser()">
+          <i class="fas fa-check"></i> إضافة
+        </button>
+        <button class="cancel-btn" onclick="closeAddUserModal()">
+          <i class="fas fa-times"></i> إلغاء
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main JavaScript -->
+  <script src="app.js"></script>
+  
+  <!-- Welcome Name Sync -->
+  <script>
+    // Sync welcome name with logged in user
+    const origShowDashboard = showDashboard;
+    showDashboard = function() {
+      origShowDashboard();
+      const welcomeEl = document.getElementById('welcomeName');
+      if (welcomeEl && AppState.currentUser) {
+        welcomeEl.textContent = AppState.currentUser.username;
+      }
+    };
+  </script>
+
+</body>
+</html>
