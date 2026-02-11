@@ -7,7 +7,7 @@ const APP_CONFIG = {
   defaultPassword: 'admin123',
   statsRefreshInterval: 60000, // 60 seconds
   toastDuration: 4000,
-  version: '1.0.0'
+  version: '1.0.1'
 };
 
 // ============ State Management ============
@@ -26,43 +26,44 @@ const Storage = {
   get(key, defaultValue = null) {
     try {
       const val = localStorage.getItem(key);
-      return val ? JSON.parse(val) : defaultValue;
-    } catch {
+      if (val === null) return defaultValue;
+      return JSON.parse(val);
+    } catch (e) {
+      console.error(`Storage.get error for key "${key}":`, e);
       return defaultValue;
     }
   },
   set(key, value) {
     try {
       localStorage.setItem(key, JSON.stringify(value));
+      console.log(`Successfully saved to localStorage: ${key}`);
+      return true;
     } catch (e) {
-      console.error('Storage error:', e);
+      console.error(`Storage.set error for key "${key}":`, e);
+      return false;
     }
   },
   remove(key) {
-    localStorage.removeItem(key);
+    try {
+      localStorage.removeItem(key);
+      return true;
+    } catch (e) {
+      console.error(`Storage.remove error for key "${key}":`, e);
+      return false;
+    }
   }
 };
 
 // ============ Script URL Management ============
 function getScriptURL() {
-  // Try multiple keys for compatibility
-  let url = Storage.get('scriptURL', '');
-  if (!url) {
-    // Fallback: try raw localStorage with 'scriptUrl' key
-    try {
-      url = localStorage.getItem('scriptUrl') || '';
-    } catch(e) { url = ''; }
-  }
-  return url;
+  // Check both keys as requested
+  return Storage.get('scriptUrl') || Storage.get('scriptURL', '');
 }
 
 function setScriptURL(url) {
-  // Save with both keys to ensure persistence
+  // Save to both keys for compatibility
+  Storage.set('scriptUrl', url);
   Storage.set('scriptURL', url);
-  // Also save raw (without JSON.stringify) for maximum compatibility
-  try {
-    localStorage.setItem('scriptUrl', url);
-  } catch(e) { console.error('Storage error:', e); }
 }
 
 // ============ User Management ============
@@ -262,6 +263,11 @@ function navigateTo(page) {
     loadSettings();
   }
   
+  if (page === 'auto') {
+    renderScheduledTasks();
+    renderAutoLog();
+  }
+  
   // Close mobile sidebar
   closeSidebar();
 }
@@ -368,151 +374,46 @@ function getActionLabel(action) {
     backup: 'نسخ احتياطي',
     results1: 'نتائج آخر سؤال',
     results3: 'نتائج آخر 3 أسئلة',
-    stats: 'إحصائيات'
+    stats: 'تحديث الإحصائيات'
   };
   return labels[action] || action;
 }
 
-// ============ Control Panel Actions ============
-function handleControlAction(action, btnElement) {
-  // Confirmation for dangerous actions
-  if (action === 'delete') {
-    if (!confirm('هل أنت متأكد من حذف جميع الردود؟ هذا الإجراء لا يمكن التراجع عنه.')) {
-      return;
-    }
-  }
-  
-  sendAction(action, btnElement);
-}
-
-// ============ Results Display ============
-function showResults(data) {
-  const resultsDiv = document.getElementById('resultsDisplay');
-  const resultsContent = document.getElementById('resultsContent');
-  
-  if (resultsDiv && resultsContent) {
-    resultsDiv.classList.add('show');
-    
-    // Format the data nicely
-    let displayData = { ...data };
-    delete displayData.success;
-    
-    resultsContent.textContent = JSON.stringify(displayData, null, 2);
-  }
-}
-
-function hideResults() {
-  const resultsDiv = document.getElementById('resultsDisplay');
-  if (resultsDiv) {
-    resultsDiv.classList.remove('show');
-  }
-}
-
-// ============ Statistics ============
-
-// Convert number to Arabic-Indic numerals
-function toArabicNum(num) {
-  const arabicDigits = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
-  return String(num).replace(/[0-9]/g, d => arabicDigits[parseInt(d)]);
-}
-
-// Format date in Arabic Egyptian style
-function formatArabicDate(dateStr) {
-  if (!dateStr) return 'لا يوجد';
-  try {
-    const date = new Date(dateStr);
-    if (isNaN(date.getTime())) return dateStr;
-    return date.toLocaleString('ar-EG', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: true
-    });
-  } catch {
-    return dateStr;
-  }
-}
-
+// ============ Stats Management ============
 async function loadStats() {
-  const scriptURL = getScriptURL();
-  const refreshBtn = document.getElementById('refreshNowBtn');
-  
-  if (!scriptURL) {
-    updateStatsUI({
-      totalResponses: 0,
-      todayResponses: 0,
-      lastResponse: null,
-      correctAnswers: 0,
-      lastQuestion: null,
-      totalAnswersOnLastQ: 0,
-      wrongAnswers: 0
-    });
-    updateChart({ totalResponses: 0, todayResponses: 0 });
-    showToast('يرجى إعداد رابط Google Apps Script في الإعدادات', 'warning');
-    return;
-  }
-  
-  // Add loading animation to refresh button
-  if (refreshBtn) refreshBtn.classList.add('loading');
-  
   const data = await sendAction('stats');
-  
-  if (refreshBtn) refreshBtn.classList.remove('loading');
-  
   if (data) {
     updateStatsUI(data);
-    updateChart(data);
     updateLastQuestionCard(data);
+    updateChart(data);
+    resetCountdown();
   }
-  
-  // Reset countdown
-  resetCountdown();
+}
+
+function toArabicNum(num) {
+  if (num === undefined || num === null) return '٠';
+  const id = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+  return num.toString().replace(/[0-9]/g, function(w) {
+    return id[+w];
+  });
 }
 
 function updateStatsUI(data) {
-  const totalEl = document.getElementById('statTotal');
-  const todayEl = document.getElementById('statToday');
-  const lastEl = document.getElementById('statLast');
-  const correctEl = document.getElementById('statCorrect');
-  
   const total = data.totalResponses || 0;
   const today = data.todayResponses || 0;
   const correct = data.correctAnswers || 0;
   const totalOnLastQ = data.totalAnswersOnLastQ || 0;
   
-  // Animate numbers with Arabic numerals
+  const totalEl = document.getElementById('totalResponses');
+  const todayEl = document.getElementById('todayResponses');
+  const correctEl = document.getElementById('correctAnswers');
+  const todayPctEl = document.getElementById('todayPercentage');
+  const formStatusEl = document.getElementById('formStatus');
+  
   if (totalEl) animateNumberArabic(totalEl, total);
   if (todayEl) animateNumberArabic(todayEl, today);
   if (correctEl) animateNumberArabic(correctEl, correct);
   
-  // Format last response time in ar-EG
-  if (lastEl) {
-    const formatted = formatArabicDate(data.lastResponse);
-    lastEl.textContent = formatted;
-  }
-  
-  // Update bars
-  const totalBar = document.getElementById('totalBar');
-  const todayBar = document.getElementById('todayBar');
-  const correctBar = document.getElementById('correctBar');
-  
-  if (totalBar) totalBar.style.width = total > 0 ? '100%' : '0%';
-  if (todayBar) todayBar.style.width = total > 0 ? Math.min((today / total) * 100, 100) + '%' : '0%';
-  if (correctBar) correctBar.style.width = totalOnLastQ > 0 ? Math.min((correct / totalOnLastQ) * 100, 100) + '%' : '0%';
-  
-  // Update summary
-  const correctPctEl = document.getElementById('correctPercentage');
-  const todayPctEl = document.getElementById('todayPercentage');
-  const formStatusEl = document.getElementById('formStatusText');
-  
-  if (correctPctEl) {
-    const pct = totalOnLastQ > 0 ? Math.round((correct / totalOnLastQ) * 100) : 0;
-    correctPctEl.textContent = toArabicNum(pct) + '٪';
-  }
   if (todayPctEl) {
     const pct = total > 0 ? Math.round((today / total) * 100) : 0;
     todayPctEl.textContent = toArabicNum(pct) + '٪';
@@ -530,13 +431,11 @@ function updateStatsUI(data) {
     }
   }
   
-  // Update subtitle for correct answers
   const correctSub = document.getElementById('correctSubtitle');
   if (correctSub && data.lastQuestion) {
     correctSub.textContent = 'من أصل ' + toArabicNum(totalOnLastQ) + ' إجابة على آخر سؤال';
   }
   
-  // Update last refresh time
   const refreshTimeEl = document.getElementById('lastRefreshTime');
   if (refreshTimeEl) {
     refreshTimeEl.textContent = new Date().toLocaleTimeString('ar-EG', {
@@ -574,13 +473,11 @@ function updateLastQuestionCard(data) {
     if (lqWrong) lqWrong.textContent = toArabicNum(wrong);
     if (lqPct) lqPct.textContent = toArabicNum(pct) + '٪';
     
-    // Progress bars
     const progressCorrect = document.getElementById('lqProgressCorrect');
     const progressWrong = document.getElementById('lqProgressWrong');
     if (progressCorrect) progressCorrect.style.width = pct + '%';
     if (progressWrong) progressWrong.style.width = wrongPct + '%';
     
-    // Labels
     const correctPctLabel = document.getElementById('lqCorrectPct');
     const wrongPctLabel = document.getElementById('lqWrongPct');
     if (correctPctLabel) correctPctLabel.textContent = toArabicNum(pct) + '٪';
@@ -592,7 +489,6 @@ function updateLastQuestionCard(data) {
 
 function animateNumberArabic(element, target) {
   const currentText = element.textContent;
-  // Extract numeric value from Arabic or Western digits
   const current = parseInt(currentText.replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d))) || 0;
   const diff = target - current;
   
@@ -624,7 +520,6 @@ function updateChart(data) {
   const total = data.totalResponses || 0;
   const avgPerDay = total > 0 ? Math.round(total / 7) : 0;
   
-  // Use weeklyData from server if available, otherwise generate sample
   let labels = [];
   let values = [];
   
@@ -651,87 +546,77 @@ function updateChart(data) {
     AppState.chartInstance.destroy();
   }
   
-  AppState.chartInstance = new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels: labels,
-      datasets: [{
-        label: 'عدد الردود',
-        data: values,
-        backgroundColor: function(context) {
-          const chart = context.chart;
-          const {ctx: c, chartArea} = chart;
-          if (!chartArea) return 'rgba(212, 160, 23, 0.3)';
-          const gradient = c.createLinearGradient(0, chartArea.bottom, 0, chartArea.top);
-          gradient.addColorStop(0, 'rgba(212, 160, 23, 0.1)');
-          gradient.addColorStop(1, 'rgba(212, 160, 23, 0.5)');
-          return gradient;
-        },
-        borderColor: '#d4a017',
-        borderWidth: 2,
-        borderRadius: 8,
-        barThickness: 40,
-        hoverBackgroundColor: 'rgba(212, 160, 23, 0.6)',
-        hoverBorderColor: '#f0c040',
-        hoverBorderWidth: 3
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      animation: {
-        duration: 1000,
-        easing: 'easeOutQuart'
-      },
-      plugins: {
-        legend: {
-          display: false
-        },
-        tooltip: {
-          backgroundColor: '#1a1a1a',
-          titleColor: '#d4a017',
-          bodyColor: '#ffffff',
+  if (typeof Chart !== 'undefined') {
+    AppState.chartInstance = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'عدد الردود',
+          data: values,
+          backgroundColor: function(context) {
+            const chart = context.chart;
+            const {ctx: c, chartArea} = chart;
+            if (!chartArea) return 'rgba(212, 160, 23, 0.3)';
+            const gradient = c.createLinearGradient(0, chartArea.bottom, 0, chartArea.top);
+            gradient.addColorStop(0, 'rgba(212, 160, 23, 0.1)');
+            gradient.addColorStop(1, 'rgba(212, 160, 23, 0.5)');
+            return gradient;
+          },
           borderColor: '#d4a017',
-          borderWidth: 1,
-          padding: 14,
-          cornerRadius: 8,
-          titleFont: { family: 'Tajawal', size: 13, weight: '700' },
-          bodyFont: { family: 'Tajawal', size: 12 },
-          rtl: true,
-          callbacks: {
-            label: function(context) {
-              return 'عدد الردود: ' + toArabicNum(context.parsed.y);
-            }
-          }
-        }
+          borderWidth: 2,
+          borderRadius: 8,
+          barThickness: 40,
+          hoverBackgroundColor: 'rgba(212, 160, 23, 0.6)',
+          hoverBorderColor: '#f0c040',
+          hoverBorderWidth: 3
+        }]
       },
-      scales: {
-        y: {
-          beginAtZero: true,
-          grid: {
-            color: 'rgba(255, 255, 255, 0.05)',
-            drawBorder: false
-          },
-          ticks: {
-            color: '#666',
-            font: { family: 'Tajawal', size: 12 },
-            callback: function(value) {
-              return toArabicNum(value);
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: {
+          duration: 1000,
+          easing: 'easeOutQuart'
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: '#1a1a1a',
+            titleColor: '#d4a017',
+            bodyColor: '#ffffff',
+            borderColor: '#d4a017',
+            borderWidth: 1,
+            padding: 14,
+            cornerRadius: 8,
+            titleFont: { family: 'Tajawal', size: 13, weight: '700' },
+            bodyFont: { family: 'Tajawal', size: 12 },
+            rtl: true,
+            callbacks: {
+              label: function(context) {
+                return 'عدد الردود: ' + toArabicNum(context.parsed.y);
+              }
             }
           }
         },
-        x: {
-          grid: {
-            display: false
+        scales: {
+          y: {
+            beginAtZero: true,
+            grid: { color: 'rgba(255, 255, 255, 0.05)', drawBorder: false },
+            ticks: {
+              color: '#666',
+              font: { family: 'Tajawal', size: 12 },
+              callback: function(value) { return toArabicNum(value); }
+            }
           },
-          ticks: {
-            color: '#888',
-            font: { family: 'Tajawal', size: 11, weight: '500' }
+          x: {
+            grid: { display: false },
+            ticks: { color: '#888', font: { family: 'Tajawal', size: 11, weight: '500' } }
           }
         }
       }
-    }
-  });
+    });
+  }
 }
 
 // Countdown timer
@@ -743,23 +628,19 @@ function resetCountdown() {
 function updateCountdownDisplay() {
   const el = document.getElementById('refreshCountdown');
   if (el) {
-    el.textContent = AppState.countdownValue;
+    el.textContent = toArabicNum(AppState.countdownValue);
   }
 }
 
 function startAutoRefresh() {
   stopAutoRefresh();
   AppState.countdownValue = 60;
-  
-  // Countdown every second
   AppState.countdownInterval = setInterval(() => {
     if (AppState.currentPage === 'stats') {
       AppState.countdownValue--;
       updateCountdownDisplay();
-      
       if (AppState.countdownValue <= 0) {
         loadStats();
-        // resetCountdown is called inside loadStats
       }
     }
   }, 1000);
@@ -779,14 +660,10 @@ function stopAutoRefresh() {
 // ============ Settings ============
 function loadSettings() {
   const urlInput = document.getElementById('scriptURLInput');
-  const savedURL = getScriptURL();
   if (urlInput) {
-    urlInput.value = savedURL;
+    urlInput.value = getScriptURL();
   }
-  // Update status indicator
   checkScriptURLStatus();
-  // Log for debugging
-  console.log('Settings loaded. Script URL:', savedURL ? 'Found (' + savedURL.substring(0, 40) + '...)' : 'Not set');
 }
 
 function saveSettings() {
@@ -804,39 +681,25 @@ function saveSettings() {
   }
   
   setScriptURL(url);
-  
-  // Verify the save was successful
-  const verified = getScriptURL();
-  if (verified === url) {
-    showToast('تم حفظ الرابط بنجاح — سيبقى محفوظاً حتى بعد إغلاق المتصفح', 'success');
-    console.log('Script URL saved and verified in localStorage');
-  } else {
-    showToast('تم الحفظ ولكن يرجى التحقق من إعدادات المتصفح', 'warning');
-  }
-  
+  showToast('تم حفظ الإعدادات بنجاح', 'success');
   checkScriptURLStatus();
   addActivityLog('تحديث إعدادات السكربت', true);
 }
 
 async function testConnection() {
   const scriptURL = getScriptURL();
-  
   if (!scriptURL) {
     showToast('يرجى إدخال رابط السكربت أولاً', 'warning');
     return;
   }
-  
   showToast('جاري اختبار الاتصال...', 'info');
-  
   try {
     const response = await fetch(scriptURL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify({ action: 'stats' })
     });
-    
     const data = await response.json();
-    
     if (data.success) {
       showToast('الاتصال ناجح! السكربت يعمل بشكل صحيح', 'success');
       updateConnectionStatus(true);
@@ -863,140 +726,11 @@ function updateConnectionStatus(connected, noUrl = false) {
       statusEl.innerHTML = '<i class="fas fa-exclamation-circle"></i> لم يتم إعداد الرابط بعد';
     } else if (connected) {
       statusEl.className = 'url-status connected';
-      statusEl.innerHTML = '<i class="fas fa-check-circle"></i> الرابط محفوظ';
+      statusEl.innerHTML = '<i class="fas fa-check-circle"></i> الرابط مفعّل ومتصل';
     } else {
       statusEl.className = 'url-status disconnected';
-      statusEl.innerHTML = '<i class="fas fa-times-circle"></i> خطأ في الاتصال';
+      statusEl.innerHTML = '<i class="fas fa-times-circle"></i> خطأ في الاتصال بالرابط';
     }
-  }
-}
-
-// ============ Password Management ============
-function changePassword() {
-  const currentPass = document.getElementById('currentPassword').value;
-  const newPass = document.getElementById('newPassword').value;
-  const confirmPass = document.getElementById('confirmPassword').value;
-  
-  if (!currentPass || !newPass || !confirmPass) {
-    showToast('يرجى ملء جميع الحقول', 'warning');
-    return;
-  }
-  
-  if (newPass !== confirmPass) {
-    showToast('كلمة المرور الجديدة غير متطابقة', 'error');
-    return;
-  }
-  
-  if (newPass.length < 4) {
-    showToast('كلمة المرور يجب أن تكون 4 أحرف على الأقل', 'error');
-    return;
-  }
-  
-  const users = getUsers();
-  const user = users.find(u => u.username === AppState.currentUser.username);
-  
-  if (user && user.password === currentPass) {
-    user.password = newPass;
-    saveUsers(users);
-    showToast('تم تغيير كلمة المرور بنجاح', 'success');
-    document.getElementById('currentPassword').value = '';
-    document.getElementById('newPassword').value = '';
-    document.getElementById('confirmPassword').value = '';
-  } else {
-    showToast('كلمة المرور الحالية غير صحيحة', 'error');
-  }
-}
-
-// ============ Users Table ============
-function renderUsersTable() {
-  const tbody = document.getElementById('usersTableBody');
-  if (!tbody) return;
-  
-  const users = getUsers();
-  
-  if (users.length === 0) {
-    tbody.innerHTML = `
-      <tr>
-        <td colspan="5" style="text-align: center; padding: 40px; color: var(--text-muted);">
-          <i class="fas fa-users" style="font-size: 2rem; display: block; margin-bottom: 10px;"></i>
-          لا يوجد مستخدمون
-        </td>
-      </tr>
-    `;
-    return;
-  }
-  
-  tbody.innerHTML = users.map(user => `
-    <tr>
-      <td>
-        <div style="display: flex; align-items: center; gap: 10px;">
-          <div style="width: 32px; height: 32px; background: ${user.role === 'admin' ? 'var(--gold-gradient)' : 'rgba(23, 162, 184, 0.3)'}; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: ${user.role === 'admin' ? '#000' : 'var(--info)'}; font-weight: 700; font-size: 0.8rem;">
-            ${user.username.charAt(0).toUpperCase()}
-          </div>
-          ${user.username}
-        </div>
-      </td>
-      <td>
-        <span class="badge ${user.role === 'admin' ? 'badge-admin' : 'badge-viewer'}">
-          ${user.role === 'admin' ? 'مدير - تحكم كامل' : 'مشاهد - مشاهدة فقط'}
-        </span>
-      </td>
-      <td>${new Date(user.createdAt).toLocaleDateString('ar-SA')}</td>
-      <td>
-        ${user.username !== 'admin' ? `
-          <button class="btn-sm btn-edit" onclick="toggleUserRole(${user.id}, '${user.role}')">
-            <i class="fas fa-exchange-alt"></i> تغيير الصلاحية
-          </button>
-          <button class="btn-sm btn-delete" onclick="confirmDeleteUser(${user.id}, '${user.username}')">
-            <i class="fas fa-trash"></i> حذف
-          </button>
-        ` : '<span style="color: var(--text-muted); font-size: 0.8rem;">المدير الرئيسي</span>'}
-      </td>
-    </tr>
-  `).join('');
-}
-
-function toggleUserRole(id, currentRole) {
-  const newRole = currentRole === 'admin' ? 'viewer' : 'admin';
-  updateUserRole(id, newRole);
-}
-
-function confirmDeleteUser(id, username) {
-  if (confirm(`هل أنت متأكد من حذف المستخدم "${username}"؟`)) {
-    deleteUser(id);
-  }
-}
-
-// ============ Add User Modal ============
-function openAddUserModal() {
-  document.getElementById('addUserModal').classList.add('active');
-  document.getElementById('newUsername').value = '';
-  document.getElementById('newUserPassword').value = '';
-  document.getElementById('newUserRole').value = 'viewer';
-}
-
-function closeAddUserModal() {
-  document.getElementById('addUserModal').classList.remove('active');
-}
-
-function saveNewUser() {
-  const username = document.getElementById('newUsername').value.trim();
-  const password = document.getElementById('newUserPassword').value;
-  const role = document.getElementById('newUserRole').value;
-  
-  if (!username || !password) {
-    showToast('يرجى ملء جميع الحقول', 'warning');
-    return;
-  }
-  
-  if (password.length < 4) {
-    showToast('كلمة المرور يجب أن تكون 4 أحرف على الأقل', 'error');
-    return;
-  }
-  
-  if (addUser(username, password, role)) {
-    closeAddUserModal();
-    renderUsersTable();
   }
 }
 
@@ -1005,29 +739,22 @@ function showToast(message, type = 'info') {
   const container = document.getElementById('toastContainer');
   if (!container) return;
   
-  const icons = {
-    success: 'fas fa-check-circle',
-    error: 'fas fa-exclamation-circle',
-    warning: 'fas fa-exclamation-triangle',
-    info: 'fas fa-info-circle'
-  };
-  
   const toast = document.createElement('div');
   toast.className = `toast ${type}`;
+  
+  let icon = 'fa-info-circle';
+  if (type === 'success') icon = 'fa-check-circle';
+  if (type === 'error') icon = 'fa-exclamation-circle';
+  if (type === 'warning') icon = 'fa-exclamation-triangle';
+  
   toast.innerHTML = `
-    <i class="${icons[type] || icons.info}"></i>
-    <span>${message}</span>
-    <button class="toast-close" onclick="removeToast(this.parentElement)">
-      <i class="fas fa-times"></i>
-    </button>
+    <i class="fas ${icon}"></i>
+    <div class="toast-content">${message}</div>
+    <button class="toast-close" onclick="removeToast(this.parentElement)"><i class="fas fa-times"></i></button>
   `;
   
   container.appendChild(toast);
-  
-  // Auto remove
-  setTimeout(() => {
-    removeToast(toast);
-  }, APP_CONFIG.toastDuration);
+  setTimeout(() => { removeToast(toast); }, APP_CONFIG.toastDuration);
 }
 
 function removeToast(toast) {
@@ -1053,6 +780,8 @@ function addActivityLog(action, success) {
     AppState.activityLog.pop();
   }
   
+  // Save to localStorage immediately
+  Storage.set('activityLog', AppState.activityLog);
   renderActivityLog();
 }
 
@@ -1081,12 +810,9 @@ function shakeElement(element) {
   element.style.animation = 'none';
   element.offsetHeight; // trigger reflow
   element.style.animation = 'shake 0.5s ease';
-  setTimeout(() => {
-    element.style.animation = '';
-  }, 500);
+  setTimeout(() => { element.style.animation = ''; }, 500);
 }
 
-// Add shake animation
 const shakeStyle = document.createElement('style');
 shakeStyle.textContent = `
   @keyframes shake {
@@ -1099,22 +825,36 @@ shakeStyle.textContent = `
 `;
 document.head.appendChild(shakeStyle);
 
-// ============ Keyboard Shortcuts ============
-document.addEventListener('keydown', function(e) {
-  // Enter to login
-  if (e.key === 'Enter' && document.getElementById('loginContainer').style.display !== 'none') {
-    login();
-  }
-  
-  // Escape to close modal
-  if (e.key === 'Escape') {
-    closeAddUserModal();
-  }
-});
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+function formatTimeArabic(h, m) {
+  const period = h >= 12 ? 'م' : 'ص';
+  const hour = h % 12 || 12;
+  return `${toArabicNum(hour)}:${toArabicNum(m.toString().padStart(2, '0'))} ${period}`;
+}
+
+function formatArabicDate(isoString) {
+  const date = new Date(isoString);
+  return date.toLocaleString('ar-EG', {
+    year: 'numeric', month: 'short', day: 'numeric',
+    hour: '2-digit', minute: '2-digit', hour12: true
+  });
+}
 
 // ============ Initialize ============
 document.addEventListener('DOMContentLoaded', function() {
-  // Ensure default admin exists
+  // 1. Load Activity Log from Storage
+  AppState.activityLog = Storage.get('activityLog', []);
+  renderActivityLog();
+
+  // 2. Load AutoControl Data
+  AutoControl.load();
+  
+  // 3. Ensure default admin exists
   const users = getUsers();
   if (users.length === 0) {
     saveUsers([{
@@ -1126,44 +866,37 @@ document.addEventListener('DOMContentLoaded', function() {
     }]);
   }
   
-  // Load Script URL from localStorage on startup
-  const savedURL = getScriptURL();
-  if (savedURL) {
-    console.log('Script URL loaded from localStorage on startup');
-  }
-  
-  // Pre-fill the settings input if it exists
-  const urlInput = document.getElementById('scriptURLInput');
-  if (urlInput && savedURL) {
-    urlInput.value = savedURL;
-  }
-  
-  // Check for existing session
+  // 4. Check for existing session
   checkSession();
   
-  // Initialize activity log
-  renderActivityLog();
+  // 5. Initialize AutoControl
+  populateMonthDays();
+  renderScheduledTasks();
+  renderAutoLog();
+  startAutoControlChecker();
+  
+  // 6. Load Settings if on settings page
+  if (AppState.currentPage === 'settings') {
+    loadSettings();
+  }
 });
-
 
 // ============================================
 // Auto Control (Scheduled Tasks) Module
 // ============================================
 
-// ============ Auto Control State ============
 const AutoControl = {
   tasks: [],
   log: [],
   timers: {},
   checkerInterval: null,
 
-  // Load from localStorage
   load() {
     this.tasks = Storage.get('ac_tasks', []);
     this.log = Storage.get('ac_log', []);
+    console.log('AutoControl loaded:', this.tasks.length, 'tasks,', this.log.length, 'logs');
   },
 
-  // Save to localStorage
   saveTasks() {
     Storage.set('ac_tasks', this.tasks);
   },
@@ -1172,7 +905,6 @@ const AutoControl = {
     Storage.set('ac_log', this.log);
   },
 
-  // Add log entry
   addLog(taskName, action, success, message) {
     const entry = {
       id: Date.now(),
@@ -1189,20 +921,17 @@ const AutoControl = {
   }
 };
 
-// ============ Schedule Type Change ============
 function onScheduleTypeChange() {
   const type = document.getElementById('acScheduleType').value;
   const dateField = document.getElementById('acDateField');
   const weekField = document.getElementById('acWeekDaysField');
   const monthField = document.getElementById('acMonthDayField');
 
-  // Show/hide fields based on type
   if (dateField) dateField.style.display = type === 'once' ? 'block' : 'none';
   if (weekField) weekField.style.display = type === 'weekly' ? 'block' : 'none';
   if (monthField) monthField.style.display = type === 'monthly' ? 'block' : 'none';
 }
 
-// ============ Populate Month Days ============
 function populateMonthDays() {
   const select = document.getElementById('acMonthDay');
   if (!select) return;
@@ -1215,7 +944,6 @@ function populateMonthDays() {
   }
 }
 
-// ============ Save Scheduled Task ============
 function saveScheduledTask() {
   const action = document.getElementById('acAction').value;
   const scheduleType = document.getElementById('acScheduleType').value;
@@ -1223,13 +951,11 @@ function saveScheduledTask() {
   const minute = parseInt(document.getElementById('acMinute').value);
   const taskName = document.getElementById('acTaskName').value.trim();
 
-  // Validation
   if (!action) {
     showToast('يرجى اختيار الإجراء المطلوب', 'warning');
     return;
   }
 
-  // Build task object
   const task = {
     id: Date.now(),
     action,
@@ -1244,7 +970,6 @@ function saveScheduledTask() {
     runCount: 0
   };
 
-  // Type-specific fields
   if (scheduleType === 'once') {
     const dateVal = document.getElementById('acDate').value;
     if (!dateVal) {
@@ -1270,7 +995,6 @@ function saveScheduledTask() {
     task.monthDay = parseInt(document.getElementById('acMonthDay').value);
   }
 
-  // Save
   AutoControl.tasks.push(task);
   AutoControl.saveTasks();
 
@@ -1283,7 +1007,6 @@ function saveScheduledTask() {
   startAutoControlChecker();
 }
 
-// ============ Reset Form ============
 function resetScheduleForm() {
   const acAction = document.getElementById('acAction');
   const acScheduleType = document.getElementById('acScheduleType');
@@ -1299,7 +1022,6 @@ function resetScheduleForm() {
   if (acDate) acDate.value = '';
   if (acTaskName) acTaskName.value = '';
 
-  // Uncheck all weekdays
   document.querySelectorAll('#acWeekDaysField input[type="checkbox"]').forEach(cb => {
     cb.checked = false;
   });
@@ -1307,17 +1029,13 @@ function resetScheduleForm() {
   onScheduleTypeChange();
 }
 
-// ============ Render Scheduled Tasks ============
 function renderScheduledTasks() {
   const container = document.getElementById('acTasksList');
   const countEl = document.getElementById('acTasksCount');
   if (!container) return;
 
   const tasks = AutoControl.tasks;
-
-  if (countEl) {
-    countEl.textContent = toArabicNum(tasks.length) + ' مهام';
-  }
+  if (countEl) countEl.textContent = toArabicNum(tasks.length) + ' مهام';
 
   if (tasks.length === 0) {
     container.innerHTML = `
@@ -1353,15 +1071,17 @@ function renderScheduledTasks() {
             <span><i class="fas fa-bolt"></i> ${task.actionLabel}</span>
             <span><i class="fas fa-clock"></i> ${timeText}</span>
             <span><i class="fas fa-calendar-alt"></i> ${scheduleText}</span>
-            <span><i class="fas fa-redo"></i> ${toArabicNum(task.runCount)} تنفيذ</span>
+          </div>
+          <div class="ac-task-meta">
+            آخر تنفيذ: ${lastRunText} | عدد التنفيذات: ${toArabicNum(task.runCount)}
           </div>
         </div>
         <div class="ac-task-actions">
-          <button class="ac-task-btn btn-toggle-active" onclick="toggleTask(${task.id})" title="${toggleTitle}">
+          <button class="ac-btn-icon" onclick="toggleTask(${task.id})" title="${toggleTitle}">
             <i class="fas ${toggleIcon}"></i>
           </button>
-          <button class="ac-task-btn btn-delete-task" onclick="deleteTask(${task.id})" title="حذف">
-            <i class="fas fa-trash-alt"></i>
+          <button class="ac-btn-icon delete" onclick="deleteTask(${task.id})" title="حذف">
+            <i class="fas fa-trash"></i>
           </button>
         </div>
       </div>
@@ -1369,265 +1089,113 @@ function renderScheduledTasks() {
   }).join('');
 }
 
-// ============ Helper: Schedule Description ============
 function getScheduleText(task) {
-  const dayNames = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+  if (task.scheduleType === 'once') return 'مرة واحدة (' + task.date + ')';
+  if (task.scheduleType === 'daily') return 'يومياً';
+  if (task.scheduleType === 'weekly') {
+    const days = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+    return 'أسبوعياً (' + task.weekDays.map(d => days[d]).join('، ') + ')';
+  }
+  if (task.scheduleType === 'monthly') return 'شهرياً (يوم ' + toArabicNum(task.monthDay) + ')';
+  return '';
+}
 
-  switch (task.scheduleType) {
-    case 'once': {
-      if (task.date) {
-        const d = new Date(task.date + 'T00:00:00');
-        return 'مرة واحدة: ' + d.toLocaleDateString('ar-EG', { year: 'numeric', month: 'long', day: 'numeric' });
-      }
-      return 'مرة واحدة';
-    }
-    case 'daily':
-      return 'يومياً';
-    case 'weekly': {
-      if (task.weekDays && task.weekDays.length > 0) {
-        const names = task.weekDays.map(d => dayNames[d]);
-        return 'أسبوعياً: ' + names.join('، ');
-      }
-      return 'أسبوعياً';
-    }
-    case 'monthly':
-      return 'شهرياً: اليوم ' + toArabicNum(task.monthDay || 1);
-    default:
-      return task.scheduleType;
+function toggleTask(id) {
+  const task = AutoControl.tasks.find(t => t.id === id);
+  if (task) {
+    task.active = !task.active;
+    AutoControl.saveTasks();
+    renderScheduledTasks();
+    showToast(task.active ? 'تم تفعيل المهمة' : 'تم إيقاف المهمة مؤقتاً', 'info');
   }
 }
 
-// ============ Helper: Format Time ============
-function formatTimeArabic(hour, minute) {
-  const h = hour % 12 || 12;
-  const period = hour < 12 ? 'ص' : 'م';
-  const m = String(minute).padStart(2, '0');
-  return toArabicNum(h) + ':' + toArabicNum(m) + ' ' + period;
+function deleteTask(id) {
+  if (confirm('هل أنت متأكد من حذف هذه المهمة؟')) {
+    AutoControl.tasks = AutoControl.tasks.filter(t => t.id !== id);
+    AutoControl.saveTasks();
+    renderScheduledTasks();
+    showToast('تم حذف المهمة بنجاح', 'success');
+  }
 }
 
-// ============ Helper: Escape HTML ============
-function escapeHtml(text) {
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
-}
-
-// ============ Toggle Task Active/Paused ============
-function toggleTask(taskId) {
-  const task = AutoControl.tasks.find(t => t.id === taskId);
-  if (!task) return;
-
-  task.active = !task.active;
-  AutoControl.saveTasks();
-  renderScheduledTasks();
-
-  const statusText = task.active ? 'تم تفعيل المهمة' : 'تم إيقاف المهمة مؤقتاً';
-  showToast(statusText + ': ' + task.name, task.active ? 'success' : 'warning');
-  AutoControl.addLog(task.name, task.action, true, statusText);
-}
-
-// ============ Delete Task ============
-function deleteTask(taskId) {
-  const task = AutoControl.tasks.find(t => t.id === taskId);
-  if (!task) return;
-
-  if (!confirm('هل أنت متأكد من حذف المهمة "' + task.name + '"؟')) return;
-
-  AutoControl.tasks = AutoControl.tasks.filter(t => t.id !== taskId);
-  AutoControl.saveTasks();
-  renderScheduledTasks();
-
-  showToast('تم حذف المهمة: ' + task.name, 'success');
-  addActivityLog('حذف مهمة مجدولة: ' + task.name, true);
-  AutoControl.addLog(task.name, task.action, true, 'تم حذف المهمة');
-}
-
-// ============ Render Execution Log ============
 function renderAutoLog() {
   const container = document.getElementById('acLogList');
   if (!container) return;
 
-  const logs = AutoControl.log;
-
-  if (logs.length === 0) {
-    container.innerHTML = `
-      <div class="ac-empty">
-        <i class="fas fa-clipboard-list"></i>
-        <p>لا توجد تنفيذات سابقة</p>
-      </div>
-    `;
+  if (AutoControl.log.length === 0) {
+    container.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 20px; color: var(--text-muted);">لا توجد سجلات تنفيذ بعد</td></tr>';
     return;
   }
 
-  container.innerHTML = logs.slice(0, 50).map(log => {
-    const timeStr = new Date(log.time).toLocaleString('ar-EG', {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: true
-    });
-
-    return `
-      <div class="ac-log-item">
-        <div class="ac-log-icon ${log.success ? 'success' : 'error'}">
-          <i class="fas ${log.success ? 'fa-check' : 'fa-times'}"></i>
-        </div>
-        <div class="ac-log-text">
-          <strong>${escapeHtml(log.taskName)}</strong> — ${escapeHtml(log.message)}
-        </div>
-        <div class="ac-log-time">${timeStr}</div>
-      </div>
-    `;
-  }).join('');
+  container.innerHTML = AutoControl.log.map(entry => `
+    <tr>
+      <td>${formatArabicDate(entry.time)}</td>
+      <td><strong>${escapeHtml(entry.taskName)}</strong></td>
+      <td>${getActionLabel(entry.action)}</td>
+      <td>
+        <span class="ac-badge ${entry.success ? 'success' : 'danger'}">
+          ${entry.success ? 'ناجح' : 'فشل'}
+        </span>
+      </td>
+      <td>${escapeHtml(entry.message)}</td>
+    </tr>
+  `).join('');
 }
 
-// ============ Clear Execution Log ============
-function clearAutoLog() {
-  if (!confirm('هل أنت متأكد من مسح سجل التنفيذات؟')) return;
-  AutoControl.log = [];
-  AutoControl.saveLog();
-  renderAutoLog();
-  showToast('تم مسح سجل التنفيذات', 'success');
-}
-
-// ============ Auto Control Checker (runs every 30 seconds) ============
 function startAutoControlChecker() {
-  if (AutoControl.checkerInterval) return;
-
-  // Check immediately
-  checkAndExecuteTasks();
-
-  // Then check every 30 seconds
+  if (AutoControl.checkerInterval) clearInterval(AutoControl.checkerInterval);
+  
   AutoControl.checkerInterval = setInterval(() => {
-    checkAndExecuteTasks();
-  }, 30000);
+    const now = new Date();
+    const currentHour = now.getHours();
+    const currentMinute = now.getMinutes();
+    const currentDay = now.getDay();
+    const currentDate = now.toISOString().split('T')[0];
+    const currentMonthDay = now.getDate();
+
+    AutoControl.tasks.forEach(task => {
+      if (!task.active) return;
+
+      const isTime = task.hour === currentHour && task.minute === currentMinute;
+      if (!isTime) return;
+
+      const lastRunDate = task.lastRun ? new Date(task.lastRun).toISOString().split('T')[0] : null;
+      const lastRunTime = task.lastRun ? new Date(task.lastRun).getHours() + ':' + new Date(task.lastRun).getMinutes() : null;
+      const currentTimeStr = currentHour + ':' + currentMinute;
+
+      if (lastRunDate === currentDate && lastRunTime === currentTimeStr) return;
+
+      let shouldRun = false;
+      if (task.scheduleType === 'once' && task.date === currentDate) shouldRun = true;
+      else if (task.scheduleType === 'daily') shouldRun = true;
+      else if (task.scheduleType === 'weekly' && task.weekDays.includes(currentDay)) shouldRun = true;
+      else if (task.scheduleType === 'monthly' && task.monthDay === currentMonthDay) shouldRun = true;
+
+      if (shouldRun) {
+        executeAutoTask(task);
+      }
+    });
+  }, 30000); // Check every 30 seconds
 }
 
-function stopAutoControlChecker() {
-  if (AutoControl.checkerInterval) {
-    clearInterval(AutoControl.checkerInterval);
-    AutoControl.checkerInterval = null;
+async function executeAutoTask(task) {
+  console.log('Executing auto task:', task.name);
+  task.lastRun = new Date().toISOString();
+  task.runCount++;
+  AutoControl.saveTasks();
+  renderScheduledTasks();
+
+  const result = await sendAction(task.action);
+  if (result && result.success) {
+    AutoControl.addLog(task.name, task.action, true, 'تم التنفيذ التلقائي بنجاح');
+  } else {
+    AutoControl.addLog(task.name, task.action, false, 'فشل التنفيذ التلقائي: ' + (result ? result.message : 'خطأ اتصال'));
   }
-}
 
-async function checkAndExecuteTasks() {
-  const now = new Date();
-  const currentHour = now.getHours();
-  const currentMinute = now.getMinutes();
-  const currentDay = now.getDay(); // 0=Sunday
-  const currentDate = now.getDate();
-  const todayStr = now.toISOString().split('T')[0]; // YYYY-MM-DD
-
-  for (const task of AutoControl.tasks) {
-    if (!task.active) continue;
-
-    // Check if already ran in this time window (within last 2 minutes)
-    if (task.lastRun) {
-      const lastRunTime = new Date(task.lastRun);
-      const diffMs = now - lastRunTime;
-      if (diffMs < 120000) continue; // Skip if ran less than 2 minutes ago
-    }
-
-    // Check time match (within 1 minute window)
-    const timeMatch = (currentHour === task.hour && currentMinute === task.minute);
-    if (!timeMatch) continue;
-
-    let shouldRun = false;
-
-    switch (task.scheduleType) {
-      case 'once':
-        if (task.date === todayStr) {
-          shouldRun = true;
-        }
-        break;
-
-      case 'daily':
-        shouldRun = true;
-        break;
-
-      case 'weekly':
-        if (task.weekDays && task.weekDays.includes(currentDay)) {
-          shouldRun = true;
-        }
-        break;
-
-      case 'monthly':
-        if (currentDate === task.monthDay) {
-          shouldRun = true;
-        }
-        break;
-    }
-
-    if (shouldRun) {
-      await executeScheduledTask(task);
-    }
-  }
-}
-
-async function executeScheduledTask(task) {
-  try {
-    const result = await sendAction(task.action);
-
-    task.lastRun = new Date().toISOString();
-    task.runCount = (task.runCount || 0) + 1;
-
-    if (result && result.success) {
-      AutoControl.addLog(task.name, task.action, true, 'تم التنفيذ التلقائي بنجاح');
-      showToast('تنفيذ تلقائي: ' + task.name + ' — نجاح', 'success');
-    } else {
-      AutoControl.addLog(task.name, task.action, false, 'فشل التنفيذ التلقائي');
-      showToast('تنفيذ تلقائي: ' + task.name + ' — فشل', 'error');
-    }
-
-    // If one-time task, deactivate after execution
-    if (task.scheduleType === 'once') {
-      task.active = false;
-    }
-
+  if (task.scheduleType === 'once') {
+    task.active = false;
     AutoControl.saveTasks();
     renderScheduledTasks();
-
-  } catch (error) {
-    console.error('Auto execution error:', error);
-    AutoControl.addLog(task.name, task.action, false, 'خطأ: ' + error.message);
-    showToast('خطأ في التنفيذ التلقائي: ' + task.name, 'error');
   }
 }
-
-// ============ Initialize Auto Control on page load ============
-function initAutoControl() {
-  AutoControl.load();
-  populateMonthDays();
-  onScheduleTypeChange();
-  renderScheduledTasks();
-  renderAutoLog();
-  startAutoControlChecker();
-
-  // Set default date to today
-  const dateInput = document.getElementById('acDate');
-  if (dateInput) {
-    const today = new Date().toISOString().split('T')[0];
-    dateInput.value = today;
-    dateInput.min = today;
-  }
-}
-
-// ============ Update navigateTo for autocontrol page ============
-const _originalNavigateTo = navigateTo;
-navigateTo = function(page) {
-  _originalNavigateTo(page);
-
-  if (page === 'autocontrol') {
-    initAutoControl();
-  }
-};
-
-// Start the checker on page load if there are active tasks
-document.addEventListener('DOMContentLoaded', function() {
-  AutoControl.load();
-  if (AutoControl.tasks.some(t => t.active)) {
-    startAutoControlChecker();
-  }
-});
